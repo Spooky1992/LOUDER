@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<!-- PAGE -->
+<title>Louder</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : une seule colonne façon tranche de console — le mot qui grossit, la zone de dépôt, puis les deux oscillogrammes avant/après à la même échelle */
+:root {
+  --bg: #e8ecf1;
+  --surface: #f8fafc;
+  --ink: #111924;
+  --muted: #586577;
+  --line: #c7d0db;
+  --accent: #1d44e0;
+  --accent-ink: #ffffff;
+  --accent-soft: #dbe3ff;
+  --wave-before: #98a4b4;
+  --wave-after: #1d44e0;
+  --grid: #d5dce5;
+  --ok: #1b7f47;
+  --hot: #b42323;
+  --f-display: "Bricolage Grotesque", "Arial Black", Impact, system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1219; --surface: #151c26; --ink: #e5eaf1; --muted: #93a0b2; --line: #2a3442;
+    --accent: #7590ff; --accent-ink: #0a0f1f; --accent-soft: #1d2647;
+    --wave-before: #4c586b; --wave-after: #7d96ff; --grid: #222b38;
+    --ok: #4fc283; --hot: #ff7070; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1219; --surface: #151c26; --ink: #e5eaf1; --muted: #93a0b2; --line: #2a3442;
+  --accent: #7590ff; --accent-ink: #0a0f1f; --accent-soft: #1d2647;
+  --wave-before: #4c586b; --wave-after: #7d96ff; --grid: #222b38;
+  --ok: #4fc283; --hot: #ff7070; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); }
+body {
+  margin: 0;
+  color: var(--ink);
+  font: 16px/1.55 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 780px; margin: 0 auto; padding-block: 40px 64px; display: grid; gap: 28px; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* Le mot-titre : chaque lettre un cran plus forte que la précédente */
+.wordmark {
+  margin: 0; display: flex; align-items: baseline; gap: 0.02em;
+  font: 800 1rem/0.9 var(--f-display); letter-spacing: -0.02em; color: var(--ink);
+}
+.wordmark span:nth-child(1) { font-size: 1.6rem; color: var(--muted); }
+.wordmark span:nth-child(2) { font-size: 2.2rem; color: var(--muted); }
+.wordmark span:nth-child(3) { font-size: 2.9rem; }
+.wordmark span:nth-child(4) { font-size: 3.7rem; }
+.wordmark span:nth-child(5) { font-size: 4.6rem; color: var(--accent); }
+.wordmark span:nth-child(6) { font-size: 5.6rem; color: var(--accent); }
+.lede { margin: 12px 0 0; max-width: 60ch; color: var(--muted); font-size: 1.05rem; text-wrap: pretty; }
+.lede strong { color: var(--ink); }
+
+/* Zone de dépôt */
+.drop { position: relative; }
+.drop input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.drop label {
+  display: grid; gap: 4px; justify-items: center; text-align: center;
+  padding: 30px 20px; border: 2px dashed var(--line); border-radius: var(--r);
+  background: var(--surface); transition: border-color .15s, background-color .15s;
+}
+.drop .big { font: 700 1.25rem/1.25 var(--f-display); }
+.drop .small { color: var(--muted); font-size: .92rem; }
+.drop input:focus-visible + label, .drop.over label { border-color: var(--accent); background: var(--accent-soft); }
+
+/* Poste de travail */
+.work { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; display: grid; gap: 20px; }
+.filebar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.filebar .name { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.filebar .meta { color: var(--muted); font-size: .85rem; }
+.badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 2px; }
+
+.controls { display: grid; grid-template-columns: auto 1fr; gap: 16px 28px; align-items: start; }
+@media (max-width: 620px) { .controls { grid-template-columns: 1fr; } }
+.label { display: block; margin-bottom: 8px; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+legend { padding: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg); }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 8px 14px; border-radius: 7px; cursor: pointer; font-weight: 700; white-space: nowrap; }
+.seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.checks { display: grid; gap: 8px; }
+.check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.check input { margin: 4px 0 0; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+
+.scopes { display: grid; gap: 12px; }
+.scope { margin: 0; display: grid; gap: 6px; }
+.scope figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; font-size: .85rem; }
+.scope .tag { font-weight: 700; }
+.scope .stat { color: var(--muted); }
+.scope canvas { display: block; width: 100%; height: 110px; border-radius: 10px; background: var(--bg); cursor: pointer; touch-action: manipulation; }
+
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+button { font: inherit; cursor: pointer; }
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-weight: 700; }
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible, .primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.ab { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; padding: 3px; background: var(--bg); }
+.ab button { border: 0; background: transparent; color: var(--muted); padding: 7px 12px; border-radius: 7px; font-weight: 700; }
+.ab button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.ab button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.time { color: var(--muted); font-size: .9rem; margin-left: auto; }
+
+.result { display: grid; grid-template-columns: auto 1fr; gap: 8px 20px; align-items: center; padding-top: 18px; border-top: 1px solid var(--line); }
+@media (max-width: 560px) { .result { grid-template-columns: 1fr; } }
+.gain { font: 800 3rem/1 var(--f-display); color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.gain small { font-size: 1.1rem; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.gaintext { margin: 0; text-wrap: pretty; min-width: 0; }
+.dlrow { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.primary { padding: 13px 22px; border-radius: 10px; border: 0; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 1.05rem; }
+.primary:disabled { opacity: .5; cursor: progress; }
+.note { margin: 0; color: var(--muted); font-size: .88rem; }
+.status { margin: 0; min-height: 1.5em; font-size: .92rem; color: var(--muted); }
+.status.err { color: var(--hot); font-weight: 700; }
+.status.ok { color: var(--ok); }
+
+.how { color: var(--muted); font-size: .95rem; }
+.how summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.how ol { margin: 10px 0 0; padding-left: 1.3em; display: grid; gap: 6px; max-width: 65ch; }
+.how b { color: var(--ink); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1 class="wordmark" aria-label="Louder"><span aria-hidden="true">L</span><span aria-hidden="true">O</span><span aria-hidden="true">U</span><span aria-hidden="true">D</span><span aria-hidden="true">E</span><span aria-hidden="true">R</span></h1>
+    <p class="lede">Dépose un enregistrement vocal trop faible : Louder monte la voix, rapproche les passages faibles des passages forts et empêche la saturation. <strong>Tout se fait sur ton appareil</strong>, le fichier n'est envoyé nulle part.</p>
+  </header>
+
+  <div class="drop" id="drop">
+    <input type="file" id="file" accept="audio/*,video/*,.m4a,.mp3,.wav,.ogg,.opus,.aac,.flac,.webm,.mp4,.caf">
+    <label for="file">
+      <span class="big">Dépose ton fichier audio ici</span>
+      <span class="small">ou clique pour le choisir · MP3, M4A, WAV, OGG, OPUS, FLAC, WEBM</span>
+    </label>
+  </div>
+
+  <section class="work" aria-label="Réglages et résultat">
+    <div class="filebar">
+      <span class="name" id="fname">Exemple : voix faible<span class="badge">démo</span></span>
+      <span class="meta mono" id="fmeta">—</span>
+    </div>
+
+    <div class="controls">
+      <fieldset>
+        <legend class="label">Puissance</legend>
+        <div class="seg">
+          <input type="radio" name="preset" id="p-normal" value="normal"><label for="p-normal">Normal</label>
+          <input type="radio" name="preset" id="p-fort" value="fort" checked><label for="p-fort">Fort</label>
+          <input type="radio" name="preset" id="p-max" value="max"><label for="p-max">Très fort</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend class="label">Nettoyage</legend>
+        <div class="checks">
+          <label class="check"><input type="checkbox" id="hpf" checked><span>Couper les grondements (sous 80 Hz : vent, souffle du micro, ronflement)</span></label>
+          <label class="check"><input type="checkbox" id="denoise" checked><span>Atténuer le bruit de fond entre les phrases</span></label>
+        </div>
+      </fieldset>
+    </div>
+
+    <div class="scopes">
+      <figure class="scope">
+        <figcaption><span class="tag">Avant</span><span class="stat mono" id="statBefore">—</span></figcaption>
+        <canvas id="cvBefore" aria-label="Forme d'onde du fichier original. Clique pour te placer."></canvas>
+      </figure>
+      <figure class="scope">
+        <figcaption><span class="tag">Après</span><span class="stat mono" id="statAfter">—</span></figcaption>
+        <canvas id="cvAfter" aria-label="Forme d'onde du fichier amplifié. Clique pour te placer."></canvas>
+      </figure>
+    </div>
+
+    <div class="transport">
+      <button class="btn" id="play" type="button"><svg viewBox="0 0 14 14" aria-hidden="true"><path id="playIcon" d="M3 1.5v11l9.5-5.5z"/></svg><span id="playLabel">Écouter</span></button>
+      <div class="ab" role="group" aria-label="Version écoutée">
+        <button type="button" id="abBefore" aria-pressed="false">Original</button>
+        <button type="button" id="abAfter" aria-pressed="true">Amplifié</button>
+      </div>
+      <span class="time mono" id="time">0:00 / 0:00</span>
+    </div>
+
+    <div class="result">
+      <div class="gain" id="gain">—</div>
+      <p class="gaintext" id="gaintext">&nbsp;</p>
+      <div class="dlrow">
+        <button class="primary" id="dl" type="button">Télécharger le fichier amplifié</button>
+        <p class="note" id="dlnote">Format WAV, lisible partout.</p>
+      </div>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <details class="how">
+    <summary>Ce que fait Louder, étape par étape</summary>
+    <ol>
+      <li><b>Filtre des graves</b> : retire ce qui est sous 80 Hz. La voix n'y est pas, mais ces grondements prennent de la place et empêchent de monter le volume.</li>
+      <li><b>Mise à niveau</b> : mesure le volume moyen de la voix (en ignorant les silences) et le ramène à une référence.</li>
+      <li><b>Bruit de fond</b> : baisse doucement le son quand personne ne parle, pour que le souffle ne soit pas amplifié lui aussi.</li>
+      <li><b>Compression</b> : rapproche les mots chuchotés des mots prononcés fort, pour tout entendre sans toucher au bouton du volume.</li>
+      <li><b>Limiteur</b> : monte le tout au niveau choisi et bloque les crêtes à −1 dB, donc aucun grésillement de saturation.</li>
+    </ol>
+  </details>
+</div>
+
+<script id="dsp">
+/* Traitement du signal, sans dépendance au DOM. Les signaux sont des Float32Array, un par canal. */
+const DSP = (() => {
+  const dbOf = (x) => 20 * Math.log10(Math.max(x, 1e-12));
+  const lin = (d) => Math.pow(10, d / 20);
+  const coef = (sr, seconds) => 1 - Math.exp(-1 / (sr * seconds));
+
+  function scale(chs, k) { for (const x of chs) for (let i = 0; i < x.length; i++) x[i] *= k; }
+
+  // Passe-haut Butterworth d'ordre 2 (retire aussi la composante continue)
+  function highpass(chs, sr, fc) {
+    const w = 2 * Math.PI * fc / sr, c = Math.cos(w), a = Math.sin(w) / (2 * Math.SQRT1_2), a0 = 1 + a;
+    const b0 = (1 + c) / 2 / a0, b1 = -(1 + c) / a0, b2 = b0, a1 = -2 * c / a0, a2 = (1 - a) / a0;
+    for (const x of chs) {
+      let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+      for (let i = 0; i < x.length; i++) {
+        const v = x[i], y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+        x2 = x1; x1 = v; y2 = y1; y1 = y; x[i] = y;
+      }
+    }
+  }
+
+  // Niveau crête, niveau moyen de la voix (blocs de 50 ms hors silences) et plancher de bruit, en dBFS
+  function measure(chs, sr) {
+    const n = chs[0].length, nc = chs.length, B = Math.max(1, Math.round(sr * 0.05));
+    const pw = []; let peak = 0;
+    for (let i = 0; i < n; i += B) {
+      const m = Math.min(n, i + B); let s = 0;
+      for (let c = 0; c < nc; c++) {
+        const x = chs[c];
+        for (let j = i; j < m; j++) { const v = x[j]; s += v * v; const a = v < 0 ? -v : v; if (a > peak) peak = a; }
+      }
+      pw.push(s / ((m - i) * nc));
+    }
+    const d = pw.map((p) => 10 * Math.log10(p + 1e-20));
+    const sorted = d.slice().sort((a, b) => a - b);
+    const pct = (q) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+    const noise = pct(0.1);
+    const gate = Math.max(noise + 6, pct(0.95) - 30, -80);
+    let sum = 0, k = 0;
+    for (let i = 0; i < pw.length; i++) if (d[i] > gate) { sum += pw[i]; k++; }
+    if (!k) { for (const p of pw) sum += p; k = pw.length; }
+    return { peak: dbOf(peak), speech: 10 * Math.log10(sum / k + 1e-20), noise };
+  }
+
+  // Les gains des étages dynamiques sont recalculés tous les CR échantillons (assez fin pour l'oreille, bien plus rapide)
+  const CR = 4;
+
+  // Expandeur 1:3 sous le seuil, atténuation limitée à 14 dB. Détecteur de puissance moyenne sur 20 ms.
+  function expander(chs, sr, thr) {
+    const n = chs[0].length, nc = chs.length;
+    const aD = coef(sr, 0.02), aOpen = coef(sr / CR, 0.003), aClose = coef(sr / CR, 0.15);
+    let e = 0, g = 0, k = 1;
+    for (let i = 0; i < n; i++) {
+      let x2 = 0;
+      for (let c = 0; c < nc; c++) { const v = chs[c][i]; if (v * v > x2) x2 = v * v; }
+      e += aD * (x2 - e);
+      if (i % CR === 0) {
+        const L = 10 * Math.log10(e + 1e-20);
+        const target = L < thr ? Math.max(-14, 2 * (L - thr)) : 0;
+        g += (target > g ? aOpen : aClose) * (target - g);
+        k = g < -0.01 ? Math.pow(10, g / 20) : 1;
+      }
+      if (k !== 1) for (let c = 0; c < nc; c++) chs[c][i] *= k;
+    }
+  }
+
+  // Compresseur à genou doux, canaux liés
+  function compressor(chs, sr, thr, ratio, knee) {
+    const n = chs[0].length, nc = chs.length, aA = coef(sr, 0.005), aR = coef(sr, 0.15), slope = 1 / ratio - 1;
+    let e = 0, k = 1;
+    for (let i = 0; i < n; i++) {
+      let x2 = 0;
+      for (let c = 0; c < nc; c++) { const v = chs[c][i]; if (v * v > x2) x2 = v * v; }
+      e += (x2 > e ? aA : aR) * (x2 - e);
+      if (i % CR === 0) {
+        const over = 10 * Math.log10(e + 1e-20) - thr;
+        let gr = 0;
+        if (over > knee / 2) gr = slope * over;
+        else if (over > -knee / 2) { const z = over + knee / 2; gr = slope * z * z / (2 * knee); }
+        k = gr < 0 ? Math.pow(10, gr / 20) : 1;
+      }
+      if (k !== 1) for (let c = 0; c < nc; c++) chs[c][i] *= k;
+    }
+  }
+
+  // Limiteur à anticipation de 5 ms : la courbe de gain ne dépasse jamais ce qu'exige chaque échantillon
+  function limiter(chs, sr, ceil) {
+    const n = chs[0].length, nc = chs.length, L = Math.max(1, Math.round(sr * 0.005));
+    const g = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let pk = 0;
+      for (let c = 0; c < nc; c++) { const v = chs[c][i]; const a = v < 0 ? -v : v; if (a > pk) pk = a; }
+      g[i] = pk > ceil ? ceil / pk : 1;
+    }
+    // minimum glissant sur [i, i+L], calculé à reculons dans une file circulaire
+    const R = L + 2, qi = new Int32Array(R), qv = new Float32Array(R);
+    let h = 0, t = 0;
+    for (let i = n - 1; i >= 0; i--) {
+      const v = g[i];
+      while (t > h && qv[(t - 1) % R] >= v) t--;
+      qi[t % R] = i; qv[t % R] = v; t++;
+      while (qi[h % R] > i + L) h++;
+      g[i] = qv[h % R];
+    }
+    // relâchement en 80 ms, puis moyenne glissante sur L pour adoucir l'attaque
+    const rel = coef(sr, 0.08);
+    let env = g[0];
+    for (let i = 0; i < n; i++) { const v = g[i]; env = v < env ? v : env + (v - env) * rel; g[i] = env; }
+    const ring = new Float32Array(L).fill(g[0]);
+    let sum = g[0] * L, r = 0;
+    for (let i = 0; i < n; i++) {
+      sum += g[i] - ring[r]; ring[r] = g[i]; r = (r + 1) % L;
+      const k = sum / L;
+      for (let c = 0; c < nc; c++) {
+        let y = chs[c][i] * k;
+        if (y > ceil) y = ceil; else if (y < -ceil) y = -ceil;
+        chs[c][i] = y;
+      }
+    }
+  }
+
+  // Niveau moyen visé pour la voix (dBFS) et taux de compression
+  const PRESETS = {
+    normal: { target: -20, ratio: 2 },
+    fort: { target: -16, ratio: 3 },
+    max: { target: -12.5, ratio: 4.5 },
+  };
+
+  function louder(input, opts) {
+    const p = PRESETS[opts.preset] || PRESETS.fort;
+    const sr = input.sr, chs = input.ch.map((c) => c.slice());
+    const before = measure(input.ch, sr);
+    if (opts.hpf) highpass(chs, sr, 80);
+    const m0 = measure(chs, sr);
+    const REF = -26;
+    const pre = Math.max(-20, Math.min(60, REF - m0.speech));
+    scale(chs, lin(pre));
+    const noise = m0.noise + pre;
+    if (opts.denoise && REF - noise > 8) expander(chs, sr, Math.min(noise + 5, REF - 9));
+    compressor(chs, sr, REF - 4, p.ratio, 8);
+    const m1 = measure(chs, sr);
+    scale(chs, lin(p.target - m1.speech));
+    limiter(chs, sr, lin(-1));
+    return { sr, ch: chs, before, after: measure(chs, sr) };
+  }
+
+  // WAV PCM 16 bits entrelacé
+  function encodeWav(sr, chs) {
+    const nc = chs.length, n = chs[0].length, bytes = n * nc * 2;
+    const buf = new ArrayBuffer(44 + bytes), v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + bytes, true); str(8, "WAVE");
+    str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nc, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * nc * 2, true); v.setUint16(32, nc * 2, true); v.setUint16(34, 16, true);
+    str(36, "data"); v.setUint32(40, bytes, true);
+    const out = new Int16Array(buf, 44, n * nc);
+    for (let i = 0, k = 0; i < n; i++) {
+      for (let c = 0; c < nc; c++, k++) {
+        const s = Math.max(-1, Math.min(1, chs[c][i]));
+        out[k] = Math.round(s < 0 ? s * 32768 : s * 32767);
+      }
+    }
+    return new Uint8Array(buf);
+  }
+
+  // Archive ZIP sans compression contenant un seul fichier
+  let crcTable = null;
+  function crc32(u8) {
+    if (!crcTable) {
+      crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; crcTable[n] = c >>> 0; }
+    }
+    let c = 0xffffffff;
+    for (let i = 0; i < u8.length; i++) c = crcTable[(c ^ u8[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function zipOne(name, data) {
+    const nameB = new TextEncoder().encode(name), crc = crc32(data), size = data.length;
+    const d = new Date();
+    const time = (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1);
+    const date = ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+    const head = (sig, central) => {
+      const b = new DataView(new ArrayBuffer(central ? 46 : 30));
+      let o = 0;
+      const u32 = (x) => { b.setUint32(o, x, true); o += 4; }, u16 = (x) => { b.setUint16(o, x, true); o += 2; };
+      u32(sig); if (central) u16(20); u16(20); u16(0x0800); u16(0); u16(time); u16(date);
+      u32(crc); u32(size); u32(size); u16(nameB.length); u16(0);
+      if (central) { u16(0); u16(0); u16(0); u32(0); u32(0); }
+      return new Uint8Array(b.buffer);
+    };
+    const local = head(0x04034b50, false), central = head(0x02014b50, true);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true); end.setUint16(8, 1, true); end.setUint16(10, 1, true);
+    end.setUint32(12, central.length + nameB.length, true); end.setUint32(16, local.length + nameB.length + size, true);
+    return new Blob([local, nameB, data, central, nameB, new Uint8Array(end.buffer)], { type: "application/zip" });
+  }
+
+  // Démo : voyelles synthétiques à −30 dBFS de crête, avec souffle et ronflement 50 Hz
+  function makeSample(sr) {
+    const n = Math.round(sr * 6.5), x = new Float32Array(n);
+    const syl = [
+      [0.45, .22, 700, 1200, 150, 1], [0.70, .18, 400, 2000, 160, .6], [0.92, .30, 600, 1000, 140, .9],
+      [1.60, .20, 300, 2300, 155, .45], [1.83, .25, 650, 1100, 145, .8], [2.12, .35, 500, 1500, 135, 1],
+      [3.20, .20, 700, 1200, 165, .5], [3.44, .20, 350, 2100, 150, .7], [3.68, .28, 550, 900, 140, .9],
+      [4.00, .40, 450, 1800, 130, .35], [5.00, .22, 650, 1250, 155, 1], [5.25, .30, 400, 2200, 145, .55],
+      [5.60, .45, 600, 1000, 125, .8],
+    ];
+    for (const [t0, len, f1, f2, pitch, amp] of syl) {
+      const s = Math.round(t0 * sr), m = Math.round(len * sr);
+      let ph = 0;
+      for (let i = 0; i < m && s + i < n; i++) {
+        const u = i / m, env = Math.pow(Math.sin(Math.PI * u), 0.6) * amp;
+        const f0 = pitch * (1 + 0.1 * (0.5 - u));
+        ph += 2 * Math.PI * f0 / sr;
+        let v = 0;
+        for (let k = 1; k * f0 < 4000; k++) {
+          const f = k * f0;
+          const a = Math.exp(-(((f - f1) / 130) ** 2)) + 0.7 * Math.exp(-(((f - f2) / 190) ** 2)) + 0.12 / k;
+          v += a * Math.sin(k * ph);
+        }
+        x[s + i] += v * env;
+      }
+    }
+    let pk = 0; for (const v of x) pk = Math.max(pk, Math.abs(v));
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (let i = 0; i < n; i++) x[i] = x[i] / pk * 0.03 + rnd() * 0.0012 + 0.004 * Math.sin(2 * Math.PI * 50 * i / sr);
+    return { sr, ch: [x] };
+  }
+
+  return { louder, measure, encodeWav, zipOne, makeSample, dbOf };
+})();
+</script>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const fmtDb = (d) => (d < -99 ? "−∞" : (d < 0 ? "−" : "+") + Math.abs(d).toFixed(0)) + " dB";
+  const fmtTime = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ":" + String(r).padStart(2, "0"); };
+
+  let src = null;       // { name, sr, ch, isDemo }
+  let out = null;       // résultat de DSP.louder
+  let actx = null;
+  const bufs = { before: null, after: null };
+  const player = { playing: false, which: "after", node: null, t0: 0, offset: 0 };
+  let jobId = 0;
+
+  function setStatus(msg, kind) { const el = $("status"); el.textContent = msg || ""; el.className = "status" + (kind ? " " + kind : ""); }
+
+  // ---------- Téléchargement : capacité "downloads" dans claude.ai, lien direct ailleurs ----------
+  const inViewer = !!(window.claude && typeof window.claude.use === "function");
+  let downloads = null;
+  const downloadsReady = inViewer
+    ? window.claude.use("downloads").then((d) => { downloads = d; }, () => { downloads = null; })
+    : Promise.resolve();
+  if (inViewer) $("dlnote").textContent = "Le fichier WAV arrive dans un .zip : ouvre-le pour récupérer l'audio.";
+
+  // ---------- Chargement ----------
+  function isMono(ch) {
+    if (ch.length < 2) return true;
+    const a = ch[0], b = ch[1]; let diff = 0, pk = 0;
+    for (let i = 0; i < a.length; i += 7) { diff = Math.max(diff, Math.abs(a[i] - b[i])); pk = Math.max(pk, Math.abs(a[i])); }
+    return diff <= pk * 1e-3;
+  }
+
+  async function loadFile(file) {
+    if (!file) return;
+    stop();
+    setStatus("Lecture de « " + file.name + " »…");
+    try {
+      const data = await file.arrayBuffer();
+      const ctx = new OfflineAudioContext(1, 1, 44100);
+      const ab = await ctx.decodeAudioData(data);
+      let ch = [];
+      for (let c = 0; c < Math.min(2, ab.numberOfChannels); c++) ch.push(ab.getChannelData(c).slice());
+      if (isMono(ch)) ch = [ch[0]];
+      const m = DSP.measure(ch, ab.sampleRate);
+      if (m.peak < -90) { setStatus("Ce fichier ne contient que du silence : il n'y a rien à amplifier.", "err"); return; }
+      src = { name: file.name, sr: ab.sampleRate, ch, isDemo: false };
+      out = null; cache.before = cache.after = null;
+      player.offset = 0;
+      showFile();
+      run();
+    } catch (e) {
+      setStatus("Impossible de lire ce fichier. Essaie un MP3, M4A, WAV, OGG ou FLAC. Les fichiers .amr de certains téléphones ne passent pas : convertis-les d'abord en MP3.", "err");
+    }
+  }
+
+  function showFile() {
+    const nameEl = $("fname");
+    nameEl.textContent = src.isDemo ? "Exemple : voix faible" : src.name;
+    if (src.isDemo) { const b = document.createElement("span"); b.className = "badge"; b.textContent = "démo"; nameEl.append(b); }
+    const dur = src.ch[0].length / src.sr;
+    $("fmeta").textContent = fmtTime(dur) + " · " + (src.ch.length > 1 ? "stéréo" : "mono") + " · " + (src.sr / 1000).toLocaleString("fr-FR") + " kHz";
+  }
+
+  // ---------- Traitement ----------
+  function opts() {
+    return { preset: document.querySelector('input[name="preset"]:checked').value, hpf: $("hpf").checked, denoise: $("denoise").checked };
+  }
+
+  // Le calcul tourne dans un thread à part pour que la page reste fluide sur les longs fichiers
+  const workerUrl = URL.createObjectURL(new Blob([
+    $("dsp").textContent,
+    "\nonmessage = (e) => { const r = DSP.louder(e.data.input, e.data.opts); postMessage(r, r.ch.map((c) => c.buffer)); };",
+  ], { type: "text/javascript" }));
+  let worker = null, busy = false;
+
+  function compute(input, o) {
+    return new Promise((resolve) => {
+      const fallback = () => setTimeout(() => resolve(DSP.louder(input, o)), 40);
+      try {
+        if (busy && worker) { worker.terminate(); worker = null; }
+        if (!worker) worker = new Worker(workerUrl);
+        busy = true;
+        worker.onmessage = (e) => { busy = false; resolve(e.data); };
+        worker.onerror = (e) => { e.preventDefault(); busy = false; worker.terminate(); worker = null; fallback(); };
+        worker.postMessage({ input: { sr: input.sr, ch: input.ch }, opts: o });
+      } catch (e) {
+        busy = false; worker = null; fallback();
+      }
+    });
+  }
+
+  async function run() {
+    const id = ++jobId;
+    $("dl").disabled = true;
+    const dur = src.ch[0].length / src.sr;
+    if (!src.isDemo) setStatus(dur > 120 ? "Traitement en cours… compte quelques secondes par minute d'audio." : "Traitement en cours…");
+    const result = await compute(src, opts());
+    if (id !== jobId) return;
+    const wasPlaying = player.playing;
+    if (wasPlaying) stop(true);
+    out = result;
+    bufs.before = bufs.after = null;
+    showResult();
+    drawAll();
+    $("dl").disabled = false;
+    if (!src.isDemo) setStatus("Prêt. Écoute le résultat puis télécharge-le.", "ok");
+    if (wasPlaying) play();
+  }
+
+  function showResult() {
+    const b = out.before, a = out.after, gain = a.speech - b.speech;
+    $("statBefore").textContent = "voix " + fmtDb(b.speech) + " · crête " + fmtDb(b.peak);
+    $("statAfter").textContent = "voix " + fmtDb(a.speech) + " · crête " + fmtDb(a.peak);
+    $("gain").innerHTML = "";
+    $("gain").append((gain >= 0 ? "+" : "−") + Math.abs(gain).toFixed(0));
+    const small = document.createElement("small"); small.textContent = "dB"; $("gain").append(small);
+    const times = Math.pow(2, gain / 10);
+    let txt;
+    if (gain < 1) txt = "Ce fichier était déjà à bon niveau. Choisis « Très fort » pour le pousser davantage.";
+    else if (times < 1.5) txt = "La voix est un peu plus forte, et le niveau est maintenant régulier du début à la fin.";
+    else txt = "À l'oreille, la voix est environ " + (times < 10 ? times.toFixed(1).replace(".", ",") : Math.round(times)) + " fois plus forte, sans saturation.";
+    if (src.isDemo) txt += " Dépose ton propre fichier au-dessus pour l'essayer.";
+    $("gaintext").textContent = txt;
+  }
+
+  // ---------- Formes d'onde ----------
+  const cache = { before: null, after: null };
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function renderWave(which) {
+    const cv = which === "before" ? $("cvBefore") : $("cvAfter");
+    const dpr = window.devicePixelRatio || 1, w = Math.max(1, Math.round(cv.clientWidth * dpr)), h = Math.round(110 * dpr);
+    const off = document.createElement("canvas"); off.width = w; off.height = h;
+    const g = off.getContext("2d"), mid = h / 2, amp = mid - 6 * dpr;
+    // repères : 0 dB (bord), −6 dB (moitié), −20 dB (dixième)
+    g.font = 10 * dpr + "px " + cssVar("--f-mono");
+    g.textBaseline = "middle";
+    for (const [lvl, label] of [[1, "0"], [0.5, "−6"], [0.1, "−20"]]) {
+      g.fillStyle = cssVar("--grid");
+      g.fillRect(0, Math.round(mid - lvl * amp), w, dpr); g.fillRect(0, Math.round(mid + lvl * amp), w, dpr);
+      g.fillStyle = cssVar("--muted");
+      g.fillText(label, 4 * dpr, mid - lvl * amp + (lvl === 1 ? 6 : -6) * dpr);
+    }
+    const data = which === "before" ? src.ch : out.ch, n = data[0].length;
+    g.fillStyle = cssVar(which === "before" ? "--wave-before" : "--wave-after");
+    for (let x = 0; x < w; x++) {
+      const s = Math.floor(x * n / w), e = Math.max(s + 1, Math.floor((x + 1) * n / w));
+      let pk = 0;
+      for (const ch of data) for (let i = s; i < e; i++) { const v = ch[i] < 0 ? -ch[i] : ch[i]; if (v > pk) pk = v; }
+      const y = Math.max(dpr / 2, Math.min(1, pk) * amp);
+      g.fillRect(x, mid - y, 1, 2 * y);
+    }
+    g.fillStyle = cssVar("--muted");
+    g.textAlign = "right";
+    g.fillText("dB", w - 4 * dpr, 8 * dpr);
+    cache[which] = off;
+  }
+
+  function drawAll() { if (!out) return; renderWave("before"); renderWave("after"); paint(); }
+
+  function paint() {
+    const dur = src.ch[0].length / src.sr, pos = position();
+    for (const which of ["before", "after"]) {
+      const cv = which === "before" ? $("cvBefore") : $("cvAfter"), off = cache[which];
+      if (!off) continue;
+      if (cv.width !== off.width || cv.height !== off.height) { cv.width = off.width; cv.height = off.height; }
+      const g = cv.getContext("2d");
+      g.clearRect(0, 0, cv.width, cv.height);
+      g.globalAlpha = player.which === which ? 1 : 0.55;
+      g.drawImage(off, 0, 0);
+      g.globalAlpha = 1;
+      if (pos > 0 || player.playing) {
+        g.fillStyle = cssVar("--ink");
+        g.fillRect(Math.round(pos / dur * cv.width), 0, Math.max(1, window.devicePixelRatio || 1), cv.height);
+      }
+    }
+    $("time").textContent = fmtTime(pos) + " / " + fmtTime(dur);
+  }
+
+  // ---------- Lecture et comparaison ----------
+  function position() {
+    if (!src) return 0;
+    const dur = src.ch[0].length / src.sr;
+    return Math.min(dur, player.playing ? actx.currentTime - player.t0 : player.offset);
+  }
+
+  function audioBuffer(which) {
+    if (bufs[which]) return bufs[which];
+    const data = which === "before" ? src.ch : out.ch;
+    const b = actx.createBuffer(data.length, data[0].length, src.sr);
+    data.forEach((ch, c) => b.copyToChannel(ch, c));
+    return (bufs[which] = b);
+  }
+
+  function play() {
+    if (!out) return;
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === "suspended") actx.resume();
+    const dur = src.ch[0].length / src.sr;
+    if (player.offset >= dur - 0.05) player.offset = 0;
+    const node = actx.createBufferSource();
+    node.buffer = audioBuffer(player.which);
+    node.connect(actx.destination);
+    node.onended = () => { if (player.node === node) { player.playing = false; player.node = null; player.offset = 0; setPlayUi(); paint(); } };
+    node.start(0, player.offset);
+    player.node = node; player.t0 = actx.currentTime - player.offset; player.playing = true;
+    setPlayUi();
+    requestAnimationFrame(tick);
+  }
+
+  function stop(keepPos) {
+    if (!player.playing) return;
+    const pos = position(), node = player.node;
+    player.node = null; player.playing = false;
+    try { node.stop(); } catch (e) {}
+    player.offset = keepPos === false ? 0 : pos;
+    setPlayUi();
+  }
+
+  function tick() { paint(); if (player.playing) requestAnimationFrame(tick); }
+
+  function setPlayUi() {
+    $("playLabel").textContent = player.playing ? "Pause" : "Écouter";
+    $("playIcon").setAttribute("d", player.playing ? "M2.5 1.5h3.2v11H2.5zM8.3 1.5h3.2v11H8.3z" : "M3 1.5v11l9.5-5.5z");
+  }
+
+  function choose(which) {
+    if (player.which === which) return;
+    const was = player.playing;
+    if (was) stop(true);
+    player.which = which;
+    $("abBefore").setAttribute("aria-pressed", String(which === "before"));
+    $("abAfter").setAttribute("aria-pressed", String(which === "after"));
+    if (was) play(); else paint();
+  }
+
+  function seek(ev) {
+    if (!out) return;
+    const r = ev.currentTarget.getBoundingClientRect();
+    const dur = src.ch[0].length / src.sr;
+    const t = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * dur;
+    choose(ev.currentTarget.id === "cvBefore" ? "before" : "after");
+    const was = player.playing;
+    if (was) stop(true);
+    player.offset = t;
+    if (was) play(); else paint();
+  }
+
+  // ---------- Téléchargement ----------
+  async function download() {
+    if (!out) return;
+    const base = (src.isDemo ? "exemple" : src.name.replace(/\.[^.]+$/, "")) + "_fort";
+    const wav = DSP.encodeWav(out.sr, out.ch);
+    if (inViewer) {
+      await downloadsReady;
+      if (!downloads) { setStatus("Le téléchargement n'est pas disponible dans cette vue. Ouvre la page dans ton navigateur.", "err"); return; }
+      try {
+        await downloads.save({ filename: base + ".zip", data: DSP.zipOne(base + ".wav", wav) });
+        setStatus("Fichier enregistré : " + base + ".zip (contient " + base + ".wav).", "ok");
+      } catch (e) {
+        if (e && e.code === "declined") setStatus("Téléchargement annulé.");
+        else if (e && e.code === "rate_limited") setStatus("Une demande d'enregistrement est déjà ouverte. Réessaie dans un instant.");
+        else setStatus("Le téléchargement n'a pas pu se faire ici. Ouvre la page dans ton navigateur.", "err");
+      }
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = base + ".wav";
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    setStatus("Fichier enregistré : " + base + ".wav", "ok");
+  }
+
+  // ---------- Branchements ----------
+  $("file").addEventListener("change", (e) => { loadFile(e.target.files[0]); e.target.value = ""; });
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach((t) => document.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => document.addEventListener(t, (e) => { e.preventDefault(); if (t === "drop" || !e.relatedTarget) drop.classList.remove("over"); }));
+  document.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
+
+  document.querySelectorAll('input[name="preset"], #hpf, #denoise').forEach((el) => el.addEventListener("change", () => src && run()));
+  $("play").addEventListener("click", () => (player.playing ? stop(true) : play()));
+  $("abBefore").addEventListener("click", () => choose("before"));
+  $("abAfter").addEventListener("click", () => choose("after"));
+  $("cvBefore").addEventListener("click", seek);
+  $("cvAfter").addEventListener("click", seek);
+  $("dl").addEventListener("click", download);
+
+  let rz = 0;
+  window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(drawAll, 120); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawAll);
+  new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts) document.fonts.ready.then(drawAll);
+
+  // Démarre avec l'exemple pour montrer l'effet tout de suite
+  src = Object.assign(DSP.makeSample(44100), { name: "exemple", isDemo: true });
+  showFile();
+  run();
+})();
+</script>
+<!-- /PAGE -->
+</body>
+</html>
