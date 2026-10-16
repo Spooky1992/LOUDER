@@ -91,8 +91,9 @@ body {
 .filebar .meta { color: var(--muted); font-size: .85rem; }
 .badge { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 2px; }
 
-.controls { display: grid; grid-template-columns: auto 1fr; gap: 16px 28px; align-items: start; }
-@media (max-width: 620px) { .controls { grid-template-columns: 1fr; } }
+.controls { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: flex-start; }
+.controls .grow { flex: 1 1 260px; }
+.hint { margin: 8px 0 0; color: var(--muted); font-size: .88rem; max-width: 46ch; }
 .label { display: block; margin-bottom: 8px; font-size: .75rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 legend { padding: 0; }
@@ -148,7 +149,7 @@ button { font: inherit; cursor: pointer; }
 <div class="wrap">
   <header>
     <h1 class="wordmark" aria-label="Louder"><span aria-hidden="true">L</span><span aria-hidden="true">O</span><span aria-hidden="true">U</span><span aria-hidden="true">D</span><span aria-hidden="true">E</span><span aria-hidden="true">R</span></h1>
-    <p class="lede">Dépose un enregistrement vocal trop faible : Louder monte la voix, rapproche les passages faibles des passages forts et empêche la saturation. <strong>Tout se fait sur ton appareil</strong>, le fichier n'est envoyé nulle part.</p>
+    <p class="lede">Dépose un son trop faible, mémo vocal ou musique : Louder monte le volume, rapproche les passages faibles des passages forts et empêche la saturation. <strong>Tout se fait sur ton appareil</strong>, le fichier n'est envoyé nulle part.</p>
   </header>
 
   <div class="drop" id="drop">
@@ -167,6 +168,13 @@ button { font: inherit; cursor: pointer; }
 
     <div class="controls">
       <fieldset>
+        <legend class="label">Type de son</legend>
+        <div class="seg">
+          <input type="radio" name="kind" id="k-voice" value="voice" checked><label for="k-voice">Voix</label>
+          <input type="radio" name="kind" id="k-music" value="music"><label for="k-music">Musique</label>
+        </div>
+      </fieldset>
+      <fieldset>
         <legend class="label">Puissance</legend>
         <div class="seg">
           <input type="radio" name="preset" id="p-normal" value="normal"><label for="p-normal">Normal</label>
@@ -174,13 +182,17 @@ button { font: inherit; cursor: pointer; }
           <input type="radio" name="preset" id="p-max" value="max"><label for="p-max">Très fort</label>
         </div>
       </fieldset>
-      <fieldset>
+      <fieldset class="grow" id="voiceOpts">
         <legend class="label">Nettoyage</legend>
         <div class="checks">
           <label class="check"><input type="checkbox" id="hpf" checked><span>Couper les grondements (sous 80 Hz : vent, souffle du micro, ronflement)</span></label>
           <label class="check"><input type="checkbox" id="denoise" checked><span>Atténuer le bruit de fond entre les phrases</span></label>
         </div>
       </fieldset>
+      <div class="grow" id="musicOpts" hidden>
+        <span class="label">Musique</span>
+        <p class="hint" id="musicHint">Les basses sont gardées intactes et la compression est plus douce pour ne pas abîmer le morceau.</p>
+      </div>
     </div>
 
     <div class="scopes">
@@ -223,6 +235,7 @@ button { font: inherit; cursor: pointer; }
       <li><b>Compression</b> : rapproche les mots chuchotés des mots prononcés fort, pour tout entendre sans toucher au bouton du volume.</li>
       <li><b>Limiteur</b> : monte le tout au niveau choisi et bloque les crêtes à −1 dB, donc aucun grésillement de saturation.</li>
     </ol>
+    <p>En mode <b>Musique</b>, les étapes 1 et 3 sont sautées pour garder les basses et les passages calmes, la compression est plus lente et le niveau visé plus haut (−14, −11 ou −8,5 dB), car un morceau du commerce tourne déjà autour de −10 dB. Un morceau déjà à ce niveau ne peut gagner que quelques dB avant de saturer.</p>
   </details>
 </div>
 
@@ -268,7 +281,11 @@ const DSP = (() => {
     let sum = 0, k = 0;
     for (let i = 0; i < pw.length; i++) if (d[i] > gate) { sum += pw[i]; k++; }
     if (!k) { for (const p of pw) sum += p; k = pw.length; }
-    return { peak: dbOf(peak), speech: 10 * Math.log10(sum / k + 1e-20), noise };
+    const speech = 10 * Math.log10(sum / k + 1e-20);
+    // part des blocs nettement sous le niveau moyen : élevée pour la parole (pauses entre les mots), faible pour la musique
+    let dips = 0;
+    for (const x of d) if (x < speech - 8) dips++;
+    return { peak: dbOf(peak), speech, noise, dips: dips / d.length };
   }
 
   // Les gains des étages dynamiques sont recalculés tous les CR échantillons (assez fin pour l'oreille, bien plus rapide)
@@ -294,8 +311,8 @@ const DSP = (() => {
   }
 
   // Compresseur à genou doux, canaux liés
-  function compressor(chs, sr, thr, ratio, knee) {
-    const n = chs[0].length, nc = chs.length, aA = coef(sr, 0.005), aR = coef(sr, 0.15), slope = 1 / ratio - 1;
+  function compressor(chs, sr, thr, ratio, knee, attack, release) {
+    const n = chs[0].length, nc = chs.length, aA = coef(sr, attack), aR = coef(sr, release), slope = 1 / ratio - 1;
     let e = 0, k = 1;
     for (let i = 0; i < n; i++) {
       let x2 = 0;
@@ -313,7 +330,7 @@ const DSP = (() => {
   }
 
   // Limiteur à anticipation de 5 ms : la courbe de gain ne dépasse jamais ce qu'exige chaque échantillon
-  function limiter(chs, sr, ceil) {
+  function limiter(chs, sr, ceil, release) {
     const n = chs[0].length, nc = chs.length, L = Math.max(1, Math.round(sr * 0.005));
     const g = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -331,8 +348,8 @@ const DSP = (() => {
       while (qi[h % R] > i + L) h++;
       g[i] = qv[h % R];
     }
-    // relâchement en 80 ms, puis moyenne glissante sur L pour adoucir l'attaque
-    const rel = coef(sr, 0.08);
+    // relâchement progressif, puis moyenne glissante sur L pour adoucir l'attaque
+    const rel = coef(sr, release);
     let env = g[0];
     for (let i = 0; i < n; i++) { const v = g[i]; env = v < env ? v : env + (v - env) * rel; g[i] = env; }
     const ring = new Float32Array(L).fill(g[0]);
@@ -348,29 +365,47 @@ const DSP = (() => {
     }
   }
 
-  // Niveau moyen visé pour la voix (dBFS) et taux de compression
+  // Niveau moyen visé (dBFS) et taux de compression. La musique du commerce tourne déjà vers −10 dBFS,
+  // d'où des cibles plus hautes et une compression plus lente pour ne pas la faire « pomper ».
   const PRESETS = {
-    normal: { target: -20, ratio: 2 },
-    fort: { target: -16, ratio: 3 },
-    max: { target: -12.5, ratio: 4.5 },
+    voice: { normal: { target: -20, ratio: 2 }, fort: { target: -16, ratio: 3 }, max: { target: -12.5, ratio: 4.5 } },
+    music: { normal: { target: -14, ratio: 1.6 }, fort: { target: -11, ratio: 2.2 }, max: { target: -8.5, ratio: 3 } },
   };
 
   function louder(input, opts) {
-    const p = PRESETS[opts.preset] || PRESETS.fort;
+    const music = opts.kind === "music";
+    const p = (music ? PRESETS.music : PRESETS.voice)[opts.preset] || PRESETS.voice.fort;
     const sr = input.sr, chs = input.ch.map((c) => c.slice());
     const before = measure(input.ch, sr);
-    if (opts.hpf) highpass(chs, sr, 80);
+    // 20 Hz retire seulement la composante continue ; 80 Hz coupe les grondements, réservé à la voix
+    highpass(chs, sr, !music && opts.hpf ? 80 : 20);
     const m0 = measure(chs, sr);
     const REF = -26;
     const pre = Math.max(-20, Math.min(60, REF - m0.speech));
     scale(chs, lin(pre));
     const noise = m0.noise + pre;
-    if (opts.denoise && REF - noise > 8) expander(chs, sr, Math.min(noise + 5, REF - 9));
-    compressor(chs, sr, REF - 4, p.ratio, 8);
-    const m1 = measure(chs, sr);
-    scale(chs, lin(p.target - m1.speech));
-    limiter(chs, sr, lin(-1));
-    return { sr, ch: chs, before, after: measure(chs, sr) };
+    if (!music && opts.denoise && REF - noise > 8) expander(chs, sr, Math.min(noise + 5, REF - 9));
+    if (music) compressor(chs, sr, REF - 2, p.ratio, 10, 0.02, 0.25);
+    else compressor(chs, sr, REF - 4, p.ratio, 8, 0.005, 0.15);
+    // jamais moins fort que l'original : au moins +1 dB
+    const target = Math.max(p.target, before.speech + 1);
+    // le limiteur rabote une partie du gain sur les sons déjà forts : on corrige en quelques passes
+    let gain = target - measure(chs, sr).speech, res = null, after = null;
+    for (let pass = 0; pass < 4; pass++) {
+      res = chs.map((c) => c.slice());
+      scale(res, lin(gain));
+      limiter(res, sr, lin(-1), music ? 0.15 : 0.08);
+      after = measure(res, sr);
+      const miss = target - after.speech;
+      if (miss < 0.3) break;
+      gain += Math.min(miss * 1.5, 6);
+    }
+    return { sr, ch: res, before, after };
+  }
+
+  // Devine voix ou musique d'après les pauses entre les mots
+  function guessKind(input) {
+    return measure(input.ch, input.sr).dips > 0.25 ? "voice" : "music";
   }
 
   // WAV PCM 16 bits entrelacé
@@ -457,14 +492,14 @@ const DSP = (() => {
     return { sr, ch: [x] };
   }
 
-  return { louder, measure, encodeWav, zipOne, makeSample, dbOf };
+  return { louder, measure, guessKind, encodeWav, zipOne, makeSample, dbOf };
 })();
 </script>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const fmtDb = (d) => (d < -99 ? "−∞" : (d < 0 ? "−" : "+") + Math.abs(d).toFixed(0)) + " dB";
+  const fmtDb = (d) => { const r = Math.round(d); return (d < -99 ? "−∞" : r === 0 ? "0" : (r < 0 ? "−" : "+") + Math.abs(r)) + " dB"; };
   const fmtTime = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ":" + String(r).padStart(2, "0"); };
 
   let src = null;       // { name, sr, ch, isDemo }
@@ -507,12 +542,19 @@ const DSP = (() => {
       if (m.peak < -90) { setStatus("Ce fichier ne contient que du silence : il n'y a rien à amplifier.", "err"); return; }
       src = { name: file.name, sr: ab.sampleRate, ch, isDemo: false };
       out = null; cache.before = cache.after = null;
+      setKind(DSP.guessKind(src));
       player.offset = 0;
       showFile();
       run();
     } catch (e) {
       setStatus("Impossible de lire ce fichier. Essaie un MP3, M4A, WAV, OGG ou FLAC. Les fichiers .amr de certains téléphones ne passent pas : convertis-les d'abord en MP3.", "err");
     }
+  }
+
+  function setKind(kind) {
+    $(kind === "music" ? "k-music" : "k-voice").checked = true;
+    $("voiceOpts").hidden = kind === "music";
+    $("musicOpts").hidden = kind !== "music";
   }
 
   function showFile() {
@@ -525,7 +567,12 @@ const DSP = (() => {
 
   // ---------- Traitement ----------
   function opts() {
-    return { preset: document.querySelector('input[name="preset"]:checked').value, hpf: $("hpf").checked, denoise: $("denoise").checked };
+    return {
+      kind: document.querySelector('input[name="kind"]:checked').value,
+      preset: document.querySelector('input[name="preset"]:checked').value,
+      hpf: $("hpf").checked,
+      denoise: $("denoise").checked,
+    };
   }
 
   // Le calcul tourne dans un thread à part pour que la page reste fluide sur les longs fichiers
@@ -565,22 +612,24 @@ const DSP = (() => {
     showResult();
     drawAll();
     $("dl").disabled = false;
-    if (!src.isDemo) setStatus("Prêt. Écoute le résultat puis télécharge-le.", "ok");
+    if (!src.isDemo) setStatus("Prêt" + (opts().kind === "music" ? " (réglé pour la musique)" : " (réglé pour la voix)") + ". Écoute le résultat puis télécharge-le. Si le type de son n'est pas le bon, change-le au-dessus.", "ok");
     if (wasPlaying) play();
   }
 
   function showResult() {
     const b = out.before, a = out.after, gain = a.speech - b.speech;
-    $("statBefore").textContent = "voix " + fmtDb(b.speech) + " · crête " + fmtDb(b.peak);
-    $("statAfter").textContent = "voix " + fmtDb(a.speech) + " · crête " + fmtDb(a.peak);
+    $("statBefore").textContent = "niveau " + fmtDb(b.speech) + " · crête " + fmtDb(b.peak);
+    $("statAfter").textContent = "niveau " + fmtDb(a.speech) + " · crête " + fmtDb(a.peak);
     $("gain").innerHTML = "";
     $("gain").append((gain >= 0 ? "+" : "−") + Math.abs(gain).toFixed(0));
     const small = document.createElement("small"); small.textContent = "dB"; $("gain").append(small);
     const times = Math.pow(2, gain / 10);
+    const music = opts().kind === "music", what = music ? "le morceau" : "la voix";
     let txt;
-    if (gain < 1) txt = "Ce fichier était déjà à bon niveau. Choisis « Très fort » pour le pousser davantage.";
-    else if (times < 1.5) txt = "La voix est un peu plus forte, et le niveau est maintenant régulier du début à la fin.";
-    else txt = "À l'oreille, la voix est environ " + (times < 10 ? times.toFixed(1).replace(".", ",") : Math.round(times)) + " fois plus forte, sans saturation.";
+    if (music && b.speech > -13 && gain < 3) txt = "Ce morceau était déjà mixé presque au maximum : il gagne " + Math.max(0, gain).toFixed(1).replace(".", ",") + " dB. Aller plus loin le ferait saturer." + (opts().preset === "max" ? "" : " « Très fort » le pousse encore un peu, avec un son plus compressé.");
+    else if (gain < 1) txt = "Ce fichier était déjà à bon niveau. Choisis « Très fort » pour le pousser davantage.";
+    else if (times < 1.5) txt = (music ? "Le morceau" : "La voix") + " est un peu plus fort" + (music ? "" : "e") + ", et le niveau est maintenant régulier du début à la fin.";
+    else txt = "À l'oreille, " + what + " est environ " + (times < 10 ? times.toFixed(1).replace(".", ",") : Math.round(times)) + " fois plus fort" + (music ? "" : "e") + ", sans saturation.";
     if (src.isDemo) txt += " Dépose ton propre fichier au-dessus pour l'essayer.";
     $("gaintext").textContent = txt;
   }
@@ -742,6 +791,7 @@ const DSP = (() => {
   document.addEventListener("drop", (e) => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
 
   document.querySelectorAll('input[name="preset"], #hpf, #denoise').forEach((el) => el.addEventListener("change", () => src && run()));
+  document.querySelectorAll('input[name="kind"]').forEach((el) => el.addEventListener("change", (e) => { setKind(e.target.value); if (src) run(); }));
   $("play").addEventListener("click", () => (player.playing ? stop(true) : play()));
   $("abBefore").addEventListener("click", () => choose("before"));
   $("abAfter").addEventListener("click", () => choose("after"));
